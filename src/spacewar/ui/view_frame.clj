@@ -2,13 +2,61 @@
   (:require [quil.core :as q]
             [spacewar.ui.protocols :as p]))
 
-(defn star-count [_])
-(defn star-size [_])
-(defn star-in-frame [_ _ _])
-(defn star-color [_])
-(defn move-stars [_])
-(defn make-stars [_])
-(defn add-stars [_])
+(def star-count 250)
+
+(defn move-star [star]
+  (let [h-distance (dec (:h-distance star))]
+    (if (pos? h-distance)
+      (assoc star :h-distance h-distance)
+      nil)))
+
+(defn move-stars [stars]
+  (filter some? (map move-star stars)))
+
+(defn star-in-frame [state sx sy]
+  (let [{:keys [x y w h]} state
+        margin 10
+        xmin (+ x margin)
+        ymin (+ y margin)
+        xmax (- (+ x w) margin)
+        ymax (- (+ x h) margin)]
+    (and (< sx xmax)
+         (< sy ymax)
+         (> sx xmin)
+         (> sy ymin))))
+
+(defn star-size [m]
+  (let [mm (* 200 m)]
+    (cond
+      (< mm 1) 1
+      (< mm 3) 2
+      (< mm 5) 3
+      (< mm 10) 4
+      (< mm 20) 5
+      :else 6)))
+
+(defn star-color [m]
+  (let [mm (* 200 m)]
+    (if (>= mm 0.5)
+      [255 255 255]
+      (repeat 3 (* 2 mm 256)))))
+
+(defn make-random-star [distance]
+  (let [luminosity (+ 1 (rand 5))
+        h-distance (+ distance (rand (* luminosity 200)))]
+    {:h-distance h-distance
+     :v-distance (+ -20 (rand 200) (/ h-distance 20))
+     :angle (* 2 Math/PI (/ (rand 360) 360.0))
+     :luminosity luminosity}))
+
+(defn make-stars [star-count]
+  (repeatedly star-count (partial make-random-star 20)))
+
+(defn add-stars [state]
+  (let [stars (:stars state)]
+    (if (< (count stars) star-count)
+      (assoc state :stars (conj stars (make-random-star 500)))
+      state)))
 
 (deftype star-field [state]
   p/Drawable
