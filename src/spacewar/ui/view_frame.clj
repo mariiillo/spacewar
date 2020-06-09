@@ -3,6 +3,7 @@
             [spacewar.ui.protocols :as p]))
 
 (def star-count 250)
+(def f-lum 200)
 
 (defn move-star [star]
   (let [h-distance (dec (:h-distance star))]
@@ -26,7 +27,7 @@
          (> sy ymin))))
 
 (defn star-size [m]
-  (let [mm (* 200 m)]
+  (let [mm (* f-lum m)]
     (cond
       (< mm 1) 1
       (< mm 3) 2
@@ -36,26 +37,26 @@
       :else 6)))
 
 (defn star-color [m]
-  (let [mm (* 200 m)]
+  (let [mm (* f-lum m)]
     (if (>= mm 0.5)
       [255 255 255]
       (repeat 3 (* 2 mm 256)))))
 
-(defn make-random-star [distance]
+(defn make-random-star []
   (let [luminosity (+ 1 (rand 5))
-        h-distance (+ distance (rand (* luminosity 200)))]
+        h-distance (rand (* luminosity 200))]
     {:h-distance h-distance
      :v-distance (+ -20 (rand 200) (/ h-distance 20))
      :angle (* 2 Math/PI (/ (rand 360) 360.0))
      :luminosity luminosity}))
 
 (defn make-stars [star-count]
-  (repeatedly star-count (partial make-random-star 20)))
+  (repeatedly star-count make-random-star))
 
 (defn add-stars [state]
   (let [stars (:stars state)]
     (if (< (count stars) star-count)
-      (assoc state :stars (conj stars (make-random-star 500)))
+      (assoc state :stars (conj stars (make-random-star)))
       state)))
 
 (deftype star-field [state]
@@ -65,17 +66,17 @@
       (q/no-stroke)
       (doseq [star stars]
         (let [{:keys [h-distance v-distance luminosity angle]} star
-              v (* h (/ v-distance h-distance))
-              vx (* v (Math/cos angle))
-              vy (* v (Math/sin angle))
-              sx (+ vx x (/ w 2))
-              sy (+ vy y (/ h 2))
-              m (/ luminosity
+              rd (* h (/ v-distance h-distance))
+              rx (* rd (Math/cos angle))
+              ry (* rd (Math/sin angle))
+              sx (+ rx x (/ w 2))
+              sy (+ ry y (/ h 2))
+              brightness (/ luminosity
                    (Math/sqrt (+ (* h-distance h-distance) (* v-distance v-distance))))
-              sz (star-size m)]
+              sz (star-size brightness)]
           (when (star-in-frame state sx sy)
             (do
-              (apply q/fill (star-color m))
+              (apply q/fill (star-color brightness))
               (q/ellipse sx sy sz sz)))))))
   (setup [_] (star-field. (assoc state :stars (make-stars star-count))))
   (update-state [_] (star-field. (add-stars (update state :stars move-stars)))))
