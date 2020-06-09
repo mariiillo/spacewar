@@ -31,17 +31,19 @@
   (setup [_] (frame. state))
   (update-state [_] (frame. state)))
 
-(deftype indicator-light [state]
+(deftype rectangular-light [state]
   p/Drawable
   (draw [_]
-    (let [{:keys [x y w h]} state]
+    (let [{:keys [x y w h on?]} state]
       (q/stroke 0 0 0)
       (q/stroke-weight 1)
       (q/fill 255 255 0)
+      (apply q/fill (if on? [255 255 0] [50 50 50]))
       (q/rect x y w h)))
 
-  (setup [_] (indicator-light. state))
-  (update-state [_] (indicator-light. state)))
+  (setup [_] (rectangular-light. (assoc state :on? false)))
+  (update-state [this] this)
+  (get-state [_] state))
 
 (deftype bottom-lights [state]
   p/Drawable
@@ -60,15 +62,25 @@
           indicator-width 20
           spacing (/ (- w gap gap indicator-width) (dec number))
           indicator-y (+ y (/ (- h indicator-height) 2))
-          indicators (map #(->indicator-light {:x (+ x gap (* spacing %))
-                                               :y indicator-y
-                                               :w indicator-width
-                                               :h indicator-height})
+          indicators (map #(p/setup
+                             (->rectangular-light
+                               {:x (+ x gap (* spacing %))
+                                :y indicator-y
+                                :w indicator-width
+                                :h indicator-height}))
                           (range 0 number))
           new-state (assoc state :indicators indicators)]
       (bottom-lights. new-state)))
 
-  (update-state [_] (bottom-lights. state)))
+  (update-state [_]
+    (let [old-indicators (:indicators state)
+          n (count old-indicators)
+          on-index (rem (quot (q/frame-count) 3) n)
+          indicator-states (map p/get-state old-indicators)
+          indicators (map-indexed #(->rectangular-light (assoc %2 :on? (= on-index %1))) indicator-states
+                                  )
+          new-state (assoc state :indicators indicators)]
+      (bottom-lights. new-state))))
 
 (deftype side-lights [state]
   p/Drawable
@@ -79,15 +91,13 @@
       (q/rect x y w h)))
 
   (setup [_] (side-lights. state))
-  (update-state [_] (side-lights. state)))
+  (update-state [this] this))
 
 (deftype complex [state]
   p/Drawable
   (draw [_]
-    (p/draw (:frame state))
-    (p/draw (:bottom-row state))
-    (p/draw (:left-lights state))
-    (p/draw (:right-lights state)))
+    (let [{:keys [frame bottom-row left-lights right-lights]} state]
+      (doseq [d [frame bottom-row left-lights right-lights]] (p/draw d))))
 
   (setup [_]
     (let [{:keys [x y w h]} state
@@ -106,7 +116,7 @@
           bottom-row-left-offset (/ (- frame-width bottom-row-width) 2)
           bottom-row (p/setup
                        (->bottom-lights {:x (+ x left-margin bottom-row-left-offset)
-                                        :y (+ y (- h bottom-margin) panel-gap)
+                                         :y (+ y (- h bottom-margin) panel-gap)
                                          :h 40
                                          :w bottom-row-width}))
           side-panel-height (/ frame-height 2.5)
@@ -127,4 +137,8 @@
                                  :left-lights left-lights
                                  :right-lights right-lights)]
       (complex. new-state)))
-  (update-state [_] (complex. state)))
+  (update-state [_]
+    (let [elements [:frame :bottom-row :left-lights :right-lights]
+          pairs (for [e elements] [e (p/update-state (e state))])
+          flat-pairs (flatten pairs)]
+      (complex. (->> flat-pairs (apply assoc state))))))
